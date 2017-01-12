@@ -5,6 +5,8 @@
   "author": "Simon Schneider <simon.sch@outlook.com>",
   "license": "MIT",
   "dependencies": {
+    "crawler": "^1.0.2",
+    "lodash": "^4.17.4",
     "node-crawler": "^0.0.2"
   }
 }
