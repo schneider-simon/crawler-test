@@ -1,72 +1,10 @@
-const Crawler = require("crawler");
+const PageCrawler = require('./crawler/PageCrawler')
 const url = require('url');
-const cloneDeep = require('lodash/cloneDeep');
-
-const c = new Crawler({
-    maxConnections: 10
-});
-
 
 const STEP_INITIAL = 'STEP_INITIAL'
 const STEP_TABLE_OF_CONTENTS = 'STEP_TABLE_OF_CONTENTS'
 const STEP_TOPIC = 'STEP_TOPIC'
 const STEP_VIDEO = 'STEP_VIDEO'
-
-
-function PageCrawler(handle) {
-    this.handle = handle;
-    this.history = [];
-
-    this.queue = (uri, step = STEP_INITIAL, _data = {}) => {
-        const data = cloneDeep(_data);
-        data.uri = uri;
-
-        if(this.history.indexOf(uri) !== -1){
-            return;
-        }
-
-        this.history.push(uri);
-
-        if(!data.crawlPath){
-            data.crawlPath = [];
-        }
-
-        data.crawlPath.push(uri);
-
-        console.log('queue', uri);
-
-        return c.queue([{
-            uri: uri,
-            callback: (error, response, done) => {
-                if (error) {
-                    console.error(error);
-                    done();
-                    return;
-                }
-
-                this.handle({
-                    response,
-                    $: response.$,
-                    step,
-                    data,
-                    queue: this.queue,
-                    finish: this.finish
-                });
-
-                done();
-            }
-        }]);
-    }
-
-    this.finish = (listing) => {
-        console.log({listing});
-    }
-
-    this.run = (uri) => {
-        return this.queue(uri, STEP_INITIAL, {});
-    }
-}
-
 
 const pageCrawler = new PageCrawler(({response, $, step, data, queue, finish}) => {
     switch (step) {
@@ -83,10 +21,31 @@ const pageCrawler = new PageCrawler(({response, $, step, data, queue, finish}) =
                 data.tableOfContents = href;
                 queue(href, STEP_TABLE_OF_CONTENTS, data);
             })
+
+            $('a[href*="?p="]').each((key, element) => {
+                const href = url.resolve(data.uri, $(element).attr('href'));
+                data.pageName = $(element).text();
+                data.pageHref = href;
+
+                queue(href, STEP_TOPIC, data);
+            });
             break;
         case STEP_TOPIC:
+            $('a[href*="?v="]').each((key, element) => {
+                const href = url.resolve(data.uri, $(element).attr('href'));
+
+                data.title = $(element).text();
+                data.videoUrl = href;
+
+                queue(href, STEP_VIDEO, data);
+            });
             break;
         case STEP_VIDEO:
+            data.pageHtml = $('.page-text').html();
+            data.pageText = $('.page-text').text();
+
+            finish(data);
+
             break;
         default:
             console.error(`Unknown step ${ step }.`);
@@ -94,3 +53,4 @@ const pageCrawler = new PageCrawler(({response, $, step, data, queue, finish}) =
 });
 
 pageCrawler.run('https://oberprima.com/nachhilfevideos/');
+//pageCrawler.run('https://oberprima.com/mathematik/ableitung/?p=1638', STEP_TOPIC);
